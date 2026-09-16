@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 type Provider = "openai" | "anthropic" | "gemini";
 type Message = { role: "user" | "assistant"; content: string };
@@ -22,8 +22,7 @@ export default function Home() {
     [provider],
   );
 
-  async function sendMessage(event: FormEvent) {
-    event.preventDefault();
+  async function sendMessage() {
     const content = message.trim();
     if (!content || loading) return;
 
@@ -40,18 +39,12 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Agent request failed");
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", content: data.content },
-      ]);
+      setMessages((current) => [...current, { role: "assistant", content: data.content }]);
     } catch (error) {
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: error instanceof Error ? error.message : "Something went wrong.",
-        },
-      ]);
+      setMessages((current) => [...current, {
+        role: "assistant",
+        content: error instanceof Error ? error.message : "Something went wrong.",
+      }]);
     } finally {
       setLoading(false);
     }
@@ -70,11 +63,7 @@ export default function Home() {
         <header className="topbar">
           <div><p className="eyebrow">AI WORKSPACE</p><h1>Build Agent</h1></div>
           <div className="provider-picker">
-            {providers.map((item) => (
-              <button key={item.id} className={provider === item.id ? "provider active" : "provider"} onClick={() => setProvider(item.id)}>
-                {item.label}
-              </button>
-            ))}
+            {providers.map((item) => <button key={item.id} className={provider === item.id ? "provider active" : "provider"} onClick={() => setProvider(item.id)}>{item.label}</button>)}
           </div>
         </header>
 
@@ -86,7 +75,7 @@ export default function Home() {
               <h2>What should I build?</h2>
               <p>Give your agent a goal. Choose OpenAI, Claude, or Gemini and let the workspace handle the model connection.</p>
               <div className="suggestions">
-                {['Build a SaaS dashboard', 'Review my GitHub project', 'Create an API endpoint', 'Plan an automation'].map((item) => <button key={item} onClick={() => setMessage(item)}>{item} <span>→</span></button>)}
+                {["Build a SaaS dashboard", "Review my GitHub project", "Create an API endpoint", "Plan an automation"].map((item) => <button key={item} onClick={() => setMessage(item)}>{item} <span>→</span></button>)}
               </div>
             </div>
           ) : (
@@ -97,8 +86,8 @@ export default function Home() {
           )}
         </div>
 
-        <form className="composer" onSubmit={sendMessage}>
-          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Describe what you want the agent to build..." rows={3} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(event); } }} />
+        <form className="composer" onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}>
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Describe what you want the agent to build..." rows={3} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} />
           <div className="composer-footer"><span>{activeProvider.label} · {activeProvider.model}</span><button type="submit" disabled={loading || !message.trim()}>{loading ? "Working…" : "Run agent ↑"}</button></div>
         </form>
       </section>

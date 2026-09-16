@@ -47,7 +47,7 @@ export async function executeTool(name: string, args: Record<string, unknown>) {
   }
   if (name === "fetch_url") {
     const url = new URL(String(args.url ?? ""));
-    if (!['http:', 'https:'].includes(url.protocol)) throw new Error("Only HTTP and HTTPS URLs are allowed.");
+    if (!["http:", "https:"].includes(url.protocol)) throw new Error("Only HTTP and HTTPS URLs are allowed.");
     const response = await fetch(url, {
       headers: { Accept: "text/plain,text/html,application/json" },
       signal: AbortSignal.timeout(10000),

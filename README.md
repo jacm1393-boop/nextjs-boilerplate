@@ -1,6 +1,6 @@
 # AgentOS
 
-A Next.js multi-model AI agent workspace with one chat UI for OpenAI, Claude, and Gemini.
+A Next.js AI agent workspace powered by OpenAI.
 
 ## Run locally
 
@@ -10,18 +10,15 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Add at least one provider API key to `.env.local`:
+Add your OpenAI API key to `.env.local`:
 
 - `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `GEMINI_API_KEY`
+- `OPENAI_MODEL` (optional; defaults to `gpt-5`)
 
-Optional model variables let you change the default models without changing code.
+The API key is used only by the server-side route and is never sent to the browser.
 
 ## Architecture
 
-- `app/page.tsx` — agent workspace UI and provider selector
-- `app/api/agent/route.ts` — server-side provider adapter
-- `.env.example` — environment configuration template
-
-API keys stay server-side and are never sent to the browser.
+- `app/page.tsx` — OpenAI agent workspace UI
+- `app/api/agent/route.ts` — server-side OpenAI API adapter
+- `.env.example` — OpenAI environment configuration template

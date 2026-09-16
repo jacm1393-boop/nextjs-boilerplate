@@ -1,65 +1,107 @@
-import Image from "next/image";
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+
+type Provider = "openai" | "anthropic" | "gemini";
+type Message = { role: "user" | "assistant"; content: string };
+
+const providers: { id: Provider; label: string; model: string }[] = [
+  { id: "openai", label: "OpenAI", model: "gpt-5" },
+  { id: "anthropic", label: "Claude", model: "claude-sonnet-4-5" },
+  { id: "gemini", label: "Gemini", model: "gemini-2.5-pro" },
+];
 
 export default function Home() {
+  const [provider, setProvider] = useState<Provider>("openai");
+  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const activeProvider = useMemo(
+    () => providers.find((item) => item.id === provider) ?? providers[0],
+    [provider],
+  );
+
+  async function sendMessage(event: FormEvent) {
+    event.preventDefault();
+    const content = message.trim();
+    if (!content || loading) return;
+
+    const nextMessages = [...messages, { role: "user" as const, content }];
+    setMessages(nextMessages);
+    setMessage("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, messages: nextMessages }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Agent request failed");
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", content: data.content },
+      ]);
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: error instanceof Error ? error.message : "Something went wrong.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="agent-shell">
+      <aside className="sidebar">
+        <div className="brand"><span className="brand-mark">✦</span><span>AgentOS</span></div>
+        <button className="new-chat" onClick={() => setMessages([])}>+ New task</button>
+        <div className="sidebar-section"><span>WORKSPACE</span><button>▣ Tasks</button><button>◫ History</button><button>⚙ Settings</button></div>
+        <div className="sidebar-footer"><span className="status-dot" /> Multi-model agent</div>
+      </aside>
+
+      <section className="workspace">
+        <header className="topbar">
+          <div><p className="eyebrow">AI WORKSPACE</p><h1>Build Agent</h1></div>
+          <div className="provider-picker">
+            {providers.map((item) => (
+              <button key={item.id} className={provider === item.id ? "provider active" : "provider"} onClick={() => setProvider(item.id)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        <div className="chat-area">
+          {messages.length === 0 ? (
+            <div className="hero">
+              <div className="hero-icon">✦</div>
+              <p className="eyebrow">AUTONOMOUS AI</p>
+              <h2>What should I build?</h2>
+              <p>Give your agent a goal. Choose OpenAI, Claude, or Gemini and let the workspace handle the model connection.</p>
+              <div className="suggestions">
+                {['Build a SaaS dashboard', 'Review my GitHub project', 'Create an API endpoint', 'Plan an automation'].map((item) => <button key={item} onClick={() => setMessage(item)}>{item} <span>→</span></button>)}
+              </div>
+            </div>
+          ) : (
+            <div className="messages">
+              {messages.map((item, index) => <div className={item.role === "user" ? "message user" : "message assistant"} key={`${item.role}-${index}`}><div className="message-label">{item.role === "user" ? "YOU" : activeProvider.label.toUpperCase()}</div><div className="message-content">{item.content}</div></div>)}
+              {loading && <div className="message assistant"><div className="message-label">{activeProvider.label.toUpperCase()}</div><div className="typing"><i /><i /><i /></div></div>}
+            </div>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        <form className="composer" onSubmit={sendMessage}>
+          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Describe what you want the agent to build..." rows={3} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendMessage(event); } }} />
+          <div className="composer-footer"><span>{activeProvider.label} · {activeProvider.model}</span><button type="submit" disabled={loading || !message.trim()}>{loading ? "Working…" : "Run agent ↑"}</button></div>
+        </form>
+      </section>
+    </main>
   );
 }

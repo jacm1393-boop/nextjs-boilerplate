@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgentOS
 
-## Getting Started
+A Next.js autonomous software agent powered by OpenAI and connected to a configured GitHub repository.
 
-First, run the development server:
+## Run locally
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Configure:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `OPENAI_API_KEY` — your OpenAI API key.
+- `OPENAI_MODEL` — optional model override; defaults to `gpt-5`.
+- `GITHUB_TOKEN` — a GitHub token with access to the target repository.
+- `GITHUB_OWNER` — repository owner.
+- `GITHUB_REPO` — repository name.
+- `GITHUB_BRANCH` — branch the agent should work on.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Keep `.env.local` private. Secrets are server-side only and are never sent to the browser.
 
-## Learn More
+## Agent capabilities
 
-To learn more about Next.js, take a look at the following resources:
+The OpenAI agent can iteratively:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Inspect repository directories.
+2. Read source files.
+3. Search repository code.
+4. Create or update files when the user explicitly asks for code changes.
+5. Create GitHub issues when requested.
+6. Continue tool calls for up to 8 execution steps before returning a progress message.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Architecture
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/page.tsx` — OpenAI agent workspace UI.
+- `app/api/agent/route.ts` — OpenAI Responses API + autonomous tool loop.
+- `lib/github-agent.ts` — server-side GitHub tool layer.
+- `.env.example` — environment configuration template.

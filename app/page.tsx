@@ -1,26 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-type Provider = "openai" | "anthropic" | "gemini";
 type Message = { role: "user" | "assistant"; content: string };
 
-const providers: { id: Provider; label: string; model: string }[] = [
-  { id: "openai", label: "OpenAI", model: "gpt-5" },
-  { id: "anthropic", label: "Claude", model: "claude-sonnet-4-5" },
-  { id: "gemini", label: "Gemini", model: "gemini-2.5-pro" },
-];
-
 export default function Home() {
-  const [provider, setProvider] = useState<Provider>("openai");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-
-  const activeProvider = useMemo(
-    () => providers.find((item) => item.id === provider) ?? providers[0],
-    [provider],
-  );
 
   async function sendMessage() {
     const content = message.trim();
@@ -35,7 +22,7 @@ export default function Home() {
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, messages: nextMessages }),
+        body: JSON.stringify({ messages: nextMessages }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Agent request failed");
@@ -56,39 +43,37 @@ export default function Home() {
         <div className="brand"><span className="brand-mark">✦</span><span>AgentOS</span></div>
         <button className="new-chat" onClick={() => setMessages([])}>+ New task</button>
         <div className="sidebar-section"><span>WORKSPACE</span><button>▣ Tasks</button><button>◫ History</button><button>⚙ Settings</button></div>
-        <div className="sidebar-footer"><span className="status-dot" /> Multi-model agent</div>
+        <div className="sidebar-footer"><span className="status-dot" /> OpenAI agent</div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <div><p className="eyebrow">AI WORKSPACE</p><h1>Build Agent</h1></div>
-          <div className="provider-picker">
-            {providers.map((item) => <button key={item.id} className={provider === item.id ? "provider active" : "provider"} onClick={() => setProvider(item.id)}>{item.label}</button>)}
-          </div>
+          <div className="provider-picker"><span className="provider active">OpenAI</span></div>
         </header>
 
         <div className="chat-area">
           {messages.length === 0 ? (
             <div className="hero">
               <div className="hero-icon">✦</div>
-              <p className="eyebrow">AUTONOMOUS AI</p>
+              <p className="eyebrow">OPENAI AGENT</p>
               <h2>What should I build?</h2>
-              <p>Give your agent a goal. Choose OpenAI, Claude, or Gemini and let the workspace handle the model connection.</p>
+              <p>Give your OpenAI agent a goal and run it from this workspace.</p>
               <div className="suggestions">
                 {["Build a SaaS dashboard", "Review my GitHub project", "Create an API endpoint", "Plan an automation"].map((item) => <button key={item} onClick={() => setMessage(item)}>{item} <span>→</span></button>)}
               </div>
             </div>
           ) : (
             <div className="messages">
-              {messages.map((item, index) => <div className={item.role === "user" ? "message user" : "message assistant"} key={`${item.role}-${index}`}><div className="message-label">{item.role === "user" ? "YOU" : activeProvider.label.toUpperCase()}</div><div className="message-content">{item.content}</div></div>)}
-              {loading && <div className="message assistant"><div className="message-label">{activeProvider.label.toUpperCase()}</div><div className="typing"><i /><i /><i /></div></div>}
+              {messages.map((item, index) => <div className={item.role === "user" ? "message user" : "message assistant"} key={`${item.role}-${index}`}><div className="message-label">{item.role === "user" ? "YOU" : "OPENAI"}</div><div className="message-content">{item.content}</div></div>)}
+              {loading && <div className="message assistant"><div className="message-label">OPENAI</div><div className="typing"><i /><i /><i /></div></div>}
             </div>
           )}
         </div>
 
         <form className="composer" onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}>
           <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Describe what you want the agent to build..." rows={3} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} />
-          <div className="composer-footer"><span>{activeProvider.label} · {activeProvider.model}</span><button type="submit" disabled={loading || !message.trim()}>{loading ? "Working…" : "Run agent ↑"}</button></div>
+          <div className="composer-footer"><span>OpenAI · gpt-5</span><button type="submit" disabled={loading || !message.trim()}>{loading ? "Working…" : "Run agent ↑"}</button></div>
         </form>
       </section>
     </main>

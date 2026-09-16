@@ -4,9 +4,11 @@ import { executeTool } from "@/lib/agent-tools";
 
 type Message = { role: "user" | "assistant"; content: string };
 
-const model = process.env.OPENAI_MODEL ?? "gpt-5";
+const model = process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
+const MAX_STEPS = 10;
 
 const tools = [
+  { type: "web_search_preview" },
   { type: "function", name: "get_time", description: "Get the current UTC time.", parameters: { type: "object", properties: {}, additionalProperties: false } },
   { type: "function", name: "calculate", description: "Calculate basic arithmetic. Allowed operators: +, -, *, /, %, parentheses.", parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"], additionalProperties: false } },
   { type: "function", name: "github_list_files", description: "List files and directories in the configured GitHub repository.", parameters: { type: "object", properties: { path: { type: "string" } }, additionalProperties: false } },
@@ -38,36 +40,34 @@ export async function POST(request: Request) {
 
     let input: unknown[] = messages.map((m) => ({ role: m.role, content: m.content }));
 
-    for (let step = 0; step < 10; step++) {
+    for (let step = 0; step < MAX_STEPS; step++) {
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model,
-          instructions: "You are an autonomous software agent for the configured GitHub repository. First inspect relevant files. Plan internally, use tools when needed, and continue until the user's requested task is complete or a tool reports a blocker. Never claim a write succeeded unless the tool returned success. Only write GitHub files when the user explicitly asks you to change/build the project. Do not expose secrets.",
+          instructions: "You are an autonomous software agent for the configured GitHub repository. First inspect relevant files. Plan internally, use web search for current information when useful, use GitHub tools to inspect and modify the project when requested, verify every tool result, and continue until the user's requested task is complete or a tool reports a blocker. Never claim a write succeeded unless the tool returned success. Do not expose secrets.",
           input,
           tools,
+          tool_choice: "auto",
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message ?? "OpenAI request failed");
 
       const calls = (data.output ?? []).filter((item: { type?: string }) => item.type === "function_call");
-      if (!calls.length) return NextResponse.json({ provider: "openai", model, content: data.output_text ?? "No response returned." });
+      if (!calls.length) return NextResponse.json({ provider: "openai", model, content: data.output_text ?? "No response returned.", steps: step + 1 });
 
       input = [...input, ...data.output];
       for (const call of calls) {
         let result: unknown;
-        try {
-          result = await runTool(call.name, JSON.parse(call.arguments ?? "{}"));
-        } catch (error) {
-          result = { error: error instanceof Error ? error.message : "Tool execution failed" };
-        }
+        try { result = await runTool(call.name, JSON.parse(call.arguments ?? "{}")); }
+        catch (error) { result = { error: error instanceof Error ? error.message : "Tool execution failed" }; }
         input.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
       }
     }
 
-    return NextResponse.json({ provider: "openai", model, content: "The agent reached its 10-step execution limit. It stopped safely; review the repository state before continuing." });
+    return NextResponse.json({ provider: "openai", model, content: `The agent reached its ${MAX_STEPS}-step execution limit. It stopped safely; review the repository state before continuing.`, steps: MAX_STEPS }, { status: 408 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Agent request failed";
     return NextResponse.json({ error: message }, { status: 500 });

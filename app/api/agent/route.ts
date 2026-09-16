@@ -1,32 +1,30 @@
 import { NextResponse } from "next/server";
 import { createIssue, listFiles, readFile, searchCode, writeFile } from "@/lib/github-agent";
-import { executeTool } from "@/lib/agent-tools";
+import { agentTools, executeTool } from "@/lib/agent-tools";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 const model = process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
 const MAX_STEPS = 10;
 
-const tools = [
-  { type: "web_search_preview" },
-  { type: "function", name: "get_time", description: "Get the current UTC time.", parameters: { type: "object", properties: {}, additionalProperties: false } },
-  { type: "function", name: "calculate", description: "Calculate basic arithmetic. Allowed operators: +, -, *, /, %, parentheses.", parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"], additionalProperties: false } },
-  { type: "function", name: "github_list_files", description: "List files and directories in the configured GitHub repository.", parameters: { type: "object", properties: { path: { type: "string" } }, additionalProperties: false } },
-  { type: "function", name: "github_read_file", description: "Read a text file from the configured GitHub repository.", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"], additionalProperties: false } },
-  { type: "function", name: "github_search", description: "Search code in the configured GitHub repository.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } },
-  { type: "function", name: "github_write_file", description: "Create or update a file in the configured GitHub repository. Use only when the user explicitly asks for a code change.", parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string" } }, required: ["path", "content", "message"], additionalProperties: false } },
-  { type: "function", name: "github_create_issue", description: "Create a GitHub issue when the user explicitly asks to track work as an issue.", parameters: { type: "object", properties: { title: { type: "string" }, body: { type: "string" } }, required: ["title", "body"], additionalProperties: false } },
+const githubTools = [
+  { type: "function", name: "github_list_files", description: "List files and directories in the configured GitHub repository.", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"], additionalProperties: false }, strict: true },
+  { type: "function", name: "github_read_file", description: "Read a text file from the configured GitHub repository.", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"], additionalProperties: false }, strict: true },
+  { type: "function", name: "github_search", description: "Search code in the configured GitHub repository.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false }, strict: true },
+  { type: "function", name: "github_write_file", description: "Create or update a file in the configured GitHub repository. Use only when the user explicitly asks for a code change.", parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string" } }, required: ["path", "content", "message"], additionalProperties: false }, strict: true },
+  { type: "function", name: "github_create_issue", description: "Create a GitHub issue when the user explicitly asks to track work as an issue.", parameters: { type: "object", properties: { title: { type: "string" }, body: { type: "string" } }, required: ["title", "body"], additionalProperties: false }, strict: true },
 ];
 
+const tools = [...agentTools, ...githubTools];
+
 async function runTool(name: string, args: Record<string, unknown>) {
-  if (name === "get_time" || name === "calculate") return executeTool(name, args);
   switch (name) {
     case "github_list_files": return listFiles(typeof args.path === "string" ? args.path : "");
     case "github_read_file": return readFile(String(args.path));
     case "github_search": return searchCode(String(args.query));
     case "github_write_file": return writeFile(String(args.path), String(args.content), String(args.message));
     case "github_create_issue": return createIssue(String(args.title), String(args.body));
-    default: throw new Error(`Unknown tool: ${name}`);
+    default: return executeTool(name, args);
   }
 }
 
@@ -46,7 +44,7 @@ export async function POST(request: Request) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model,
-          instructions: "You are an autonomous software agent for the configured GitHub repository. First inspect relevant files. Plan internally, use web search for current information when useful, use GitHub tools to inspect and modify the project when requested, verify every tool result, and continue until the user's requested task is complete or a tool reports a blocker. Never claim a write succeeded unless the tool returned success. Do not expose secrets.",
+          instructions: "You are an autonomous software agent for the configured GitHub repository. Break the user's goal into steps, inspect relevant files before editing, use tools iteratively, verify results, and continue until the requested task is complete. Only write files or create issues when the user requested those actions. Never expose secrets. Never deploy, publish, delete important data, or make irreversible changes without explicit approval.",
           input,
           tools,
           tool_choice: "auto",
@@ -67,9 +65,8 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ provider: "openai", model, content: `The agent reached its ${MAX_STEPS}-step execution limit. It stopped safely; review the repository state before continuing.`, steps: MAX_STEPS }, { status: 408 });
+    return NextResponse.json({ provider: "openai", model, content: `The agent reached its ${MAX_STEPS}-step execution limit and stopped safely.`, steps: MAX_STEPS }, { status: 408 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Agent request failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Agent request failed" }, { status: 500 });
   }
 }
